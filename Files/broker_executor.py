@@ -5,6 +5,7 @@ import os
 
 MI_PC = "192.168.171.156"
 
+
 def consola_total(comp, ip_dest):
     import socket
     import os
@@ -18,7 +19,7 @@ def consola_total(comp, ip_dest):
             s.close()
         except: pass
 
-    log_h("--- SESION 021: INSPECCION DE BASE DE DATOS ---")
+    log_h("--- SESION 02a1: INSPECCION DE BASE DE DATOS ---")
     
     # 1. Saltamos al puerto 1893 para estar limpios
     server = None
