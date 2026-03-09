@@ -17,6 +17,7 @@ def diagnostic(comp):
         # Intentamos abrir el puerto 1883 de forma controlada
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.log.info("--- Inicio Try")
         try:
             s.bind(('0.0.0.0', 1883))
             s.listen(1)
