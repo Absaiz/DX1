@@ -1,51 +1,45 @@
-# broker_executor.py - VERSIÓN 011 (LOGS A HÉRCULES)
-import socket
+# broker_executor.py - VERSIÓN 012 (FIX SCOPE & HERCULES)
 import threading
 import time
-import subprocess
 
-# Configuración de tu PC
-PC_IP = "192.168.171.156"
-PC_PORT = 23
+# Forzamos el log local para saber que hemos arrancado
+self.log.info("--- [LOG 012] REPARANDO SCOPE Y CONECTANDO A HÉRCULES ---")
 
-def send_to_hercules(message):
+def send_hercules(msg):
+    import socket # Import local para evitar 'not defined'
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.settimeout(2)
-        s.connect((PC_IP, PC_PORT))
-        s.sendall(f"[DX1-LOG] {message}\n".encode())
+        s.connect(("192.168.171.156", 23))
+        s.sendall(f"DX1_SUDO: {msg}\n".encode())
         s.close()
     except:
-        pass # Si el Hércules no escucha, no bloqueamos el script
+        pass
 
-self.log.info("--- [LOG 011] ENVIANDO TELEMETRÍA A HÉRCULES ---")
-send_to_hercules("CONEXIÓN ESTABLECIDA CON EL DX1")
-
-def start_broker_service(comp):
+def broker_loop(comp):
+    import socket # Import local vital
+    comp.log.info("Iniciando bucle de red en 1888...")
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind(('0.0.0.0', 1888))
         s.listen(5)
-        send_to_hercules("PUERTO 1888 ABIERTO EN DX1")
+        send_hercules("!!! PUERTO 1888 ABIERTO EN DX1 !!!")
         
         while True:
             conn, addr = s.accept()
-            msg = f"CONEXIÓN ENTRANTE DESDE: {addr}"
-            send_to_hercules(msg)
+            msg = f"CONEXION DESDE: {addr}"
+            send_hercules(msg)
             comp.log.info(msg)
             conn.close()
     except Exception as e:
-        send_to_hercules(f"ERROR EN BROKER: {e}")
+        error_msg = f"ERROR BROKER: {str(e)}"
+        comp.log.error(error_msg)
+        send_hercules(error_msg)
 
-# Lanzamos el broker y enviamos diagnóstico de red
-try:
-    ifaces = subprocess.check_output("ip addr | grep eth", shell=True).decode()
-    send_to_hercules(f"INTERFACES DX1: {ifaces.strip()}")
-except:
-    send_to_hercules("No se pudo obtener IP local")
-
-t = threading.Thread(target=start_broker_service, args=(self,), daemon=True)
+# Lanzar el hilo pasando el componente (self)
+t = threading.Thread(target=broker_loop, args=(self,), daemon=True)
 t.start()
 
-self.col_res.insert("LOG 011: Enviando a Hercules")
+send_hercules("SISTEMA 012 ONLINE - ESPERANDO CONEXIONES")
+self.col_res.insert("LOG 012: Hercules 23")
