@@ -1,53 +1,43 @@
+# broker_executor.py - VERSIÓN 025 (MODO TERMINAL)
 import socket
 import threading
 import subprocess
 import os
 
-def cerebro_central(comp):
-    # Escuchamos en 0.0.0.0 para capturar tráfico de Tailscale y red interna
-    PORT = 1883 
+MI_PC = "192.168.171.156"
+
+def terminal_interactiva(comp, ip_dest):
+    import socket
+    import subprocess
     
     try:
+        # 1. Creamos una única conexión estable
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.bind(('0.0.0.0', PORT))
-        s.listen(5)
-        comp.col_res.insert(f"CEREBRO DX1: Escuchando en puerto {PORT}")
-
+        s.settimeout(None) # Espera infinita
+        s.connect((ip_dest, 23))
+        s.sendall(b"--- DX1 TERMINAL ONLINE ---\nEscribe 'ls', 'id' o 'exit'\n> ")
+        
         while True:
-            conn, addr = s.accept()
+            # 2. Esperamos a que TU escribas algo en el Hércules
+            data = s.recv(1024).decode().strip()
             
-            # Hilo para cada conexión (así no bloqueamos el broker)
-            def handle_client(c, a):
-                try:
-                    data = c.recv(1024)
-                    if not data: return
-                    
-                    # --- LÓGICA MQTT ---
-                    # Si el primer byte es 0x10 (Connect), respondemos como Broker
-                    if data[0] == 0x10:
-                        # Enviamos CONNACK (0x20 0x02 0x00 0x00)
-                        c.sendall(b'\x20\x02\x00\x00')
-                        comp.col_res.insert(f"MQTT: Cliente conectado desde {a[0]}")
-                    
-                    # --- LÓGICA TERMINAL (Para mantenimiento) ---
-                    # Si envías texto plano (ej: 'ls'), lo ejecutamos
-                    else:
-                        cmd = data.decode().strip()
-                        if cmd:
-                            try:
-                                output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode()
-                                c.sendall(f"\n[DX1 SHELL]:\n{output}\n".encode())
-                            except Exception as e:
-                                c.sendall(f"\nError comando: {str(e)}\n".encode())
-                finally:
-                    c.close()
+            if not data or data.lower() == "exit":
+                break
+                
+            # 3. Ejecutamos lo que tú mandes como comando de Linux
+            try:
+                # Ejecutamos el comando y capturamos la salida
+                output = subprocess.check_output(data, shell=True, stderr=subprocess.STDOUT).decode()
+                s.sendall(f"\n{output}\n> ".encode())
+            except Exception as e:
+                s.sendall(f"\nError: {str(e)}\n> ".encode())
+        
+        s.close()
+    except:
+        pass
 
-            threading.Thread(target=handle_client, args=(conn, addr), daemon=True).start()
-
-    except Exception as e:
-        comp.col_res.insert(f"Error Crítico: {str(e)}")
-
-# Lanzamos el proceso
-t = threading.Thread(target=cerebro_central, args=(self,), daemon=True)
+# Lanzamos un ÚNICO hilo
+# Si ya hay uno corriendo, este fallará al conectar pero no bloqueará todo
+t = threading.Thread(target=terminal_interactiva, args=(self, MI_PC), daemon=True)
 t.start()
+self.col_res.insert("LOG 025: Terminal Lista")
