@@ -16,7 +16,7 @@ def terminal_y_broker(comp):
             try:
                 s_term = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 s_term.connect((IP_PC, 23)) # Se conecta a tu Hércules (Server)
-                s_term.sendall(b"--- TERMINAL DX1 ACTIVA ---\n> ")
+                s_term.sendall(b"--- TERMINAL DX1 ACTIVA v55 ---\n> ")
                 
                 while True:
                     data = s_term.recv(1024).decode().strip()
