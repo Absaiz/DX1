@@ -1,43 +1,51 @@
-# broker_executor.py - VERSIÓN 025 (MODO TERMINAL)
 import socket
 import threading
-import subprocess
-import os
+import time
 
-MI_PC = "192.168.171.156"
-
-def terminal_interactiva(comp, ip_dest):
-    import socket
-    import subprocess
+def gateway_total(comp):
+    PLC_IP = "192.168.250.160"
     
-    try:
-        # 1. Creamos una única conexión estable
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(None) # Espera infinita
-        s.connect((ip_dest, 23))
-        s.sendall(b"--- DX1 TERMINAL ONLINE ---\nEscribe 'ls', 'id' o 'exit'\n> ")
-        
-        while True:
-            # 2. Esperamos a que TU escribas algo en el Hércules
-            data = s.recv(1024).decode().strip()
+    def start_bridge():
+        try:
+            # Forzamos el bindeo a 0.0.0.0 para que escuche en todas las interfaces
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.bind(('0.0.0.0', 9600))
+            s.listen(5)
+            comp.col_res.insert("🟢 BRIDGE PLC: Escuchando en 9600")
             
-            if not data or data.lower() == "exit":
-                break
-                
-            # 3. Ejecutamos lo que tú mandes como comando de Linux
-            try:
-                # Ejecutamos el comando y capturamos la salida
-                output = subprocess.check_output(data, shell=True, stderr=subprocess.STDOUT).decode()
-                s.sendall(f"\n{output}\n> ".encode())
-            except Exception as e:
-                s.sendall(f"\nError: {str(e)}\n> ".encode())
-        
-        s.close()
-    except:
-        pass
+            while True:
+                client_sock, addr = s.accept()
+                def pipe(src, dst):
+                    try:
+                        while True:
+                            d = src.recv(4096)
+                            if not d: break
+                            dst.sendall(d)
+                    except: pass
+                    finally:
+                        try: src.close()
+                        except: pass
+                        try: dst.close()
+                        except: pass
 
-# Lanzamos un ÚNICO hilo
-# Si ya hay uno corriendo, este fallará al conectar pero no bloqueará todo
-t = threading.Thread(target=terminal_interactiva, args=(self, MI_PC), daemon=True)
-t.start()
-self.col_res.insert("LOG 025: Terminal Lista")
+                try:
+                    remote_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    remote_sock.settimeout(3)
+                    remote_sock.connect((PLC_IP, 9600))
+                    # Hilos bidireccionales
+                    threading.Thread(target=pipe, args=(client_sock, remote_sock), daemon=True).start()
+                    threading.Thread(target=pipe, args=(remote_sock, client_sock), daemon=True).start()
+                except Exception as e:
+                    comp.col_res.insert(f"🔴 Error conectando al PLC: {e}")
+                    client_sock.close()
+        except Exception as e:
+            comp.col_res.insert(f"❌ Error crítico en Bridge: {e}")
+
+    # Lanzamos el bridge en un hilo persistente
+    t_bridge = threading.Thread(target=start_bridge, daemon=True)
+    t_bridge.start()
+    comp.col_res.insert("🚀 Hilo de Bridge lanzado")
+
+# Ejecución
+gateway_total(self)
