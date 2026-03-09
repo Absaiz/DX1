@@ -1,42 +1,53 @@
-# broker_executor.py - VERSIÓN 008 (PERSISTENCIA Y NETSTAT)
+# broker_executor.py - VERSIÓN 009 (CONTROL DE PERSISTENCIA)
 import socket
 import threading
+import time
 import subprocess
-import os
 
-self.log.info("--- [LOG 008] INICIO DE OPERACIÓN ---")
+self.log.info("--- [LOG 009] INICIO DE VERIFICACIÓN DE ESTADO ---")
+
+def monitor_broker(comp, server_socket):
+    """ Función que verifica si el socket sigue vivo cada 10 segundos """
+    while True:
+        try:
+            # Intentamos ver si el socket del sistema sigue ahí
+            status = subprocess.check_output("netstat -tulnp | grep :1888", shell=True).decode()
+            comp.log.info(f"[HEARTBEAT] Puerto 1888 activo: {status.strip()}")
+        except:
+            comp.log.error("[ALERTA] El puerto 1888 ha desaparecido del sistema")
+        time.sleep(10)
 
 def start_broker_service(comp):
-    comp.log.info("Iniciando servicio Broker en puerto 1888...")
+    comp.log.info("Configurando Socket en 1888...")
     try:
-        # Usamos el 1888 para evitar el conflicto del sistema
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind(('0.0.0.0', 1888))
         s.listen(10)
-        comp.log.info("!!! [EXITO] BROKER MQTT SUDO ONLINE EN PUERTO 1888 !!!")
+        comp.log.info("!!! [LOG 009] PUERTO 1888 ABIERTO Y LISTO !!!")
         
+        # Lanzamos un hilo de monitorización para ver si se cae
+        monitor_thread = threading.Thread(target=monitor_broker, args=(comp, s), daemon=True)
+        monitor_thread.start()
+
         while True:
             conn, addr = s.accept()
-            # Logueamos cada vez que alguien se conecte desde fuera
-            comp.log.info(f"Nueva conexión detectada desde: {addr}")
-            # Mantenemos la conexión abierta un momento y cerramos (puro test de socket)
+            comp.log.info(f"--- [CONEXIÓN REAL] Cliente conectado desde: {addr} ---")
+            conn.send(b"Hola desde el DX1 Sudo Broker\n")
             conn.close()
     except Exception as e:
-        comp.log.error(f"Fallo en el servicio de red: {e}")
+        comp.log.error(f"Error crítico en el servicio: {e}")
 
-# 1. Identificar al ocupante del 1883 (netstat -tulnp)
-try:
-    # Como somos root, podemos ver el nombre del proceso (-p)
-    cmd = "netstat -tulnp | grep :1883"
-    ocupante = subprocess.check_output(cmd, shell=True).decode().strip()
-    self.log.info(f"Ocupante detectado en 1883: {ocupante}")
-except:
-    self.log.info("Netstat no devolvió info (puerto ocupado pero proceso oculto)")
-
-# 2. Lanzar el Broker en hilo separado para que no bloquee Synapse
+# Ejecución del hilo principal
 t = threading.Thread(target=start_broker_service, args=(self,), daemon=True)
 t.start()
 
-self.log.info("--- [LOG 008] SISTEMA EN ESCUCHA (1888) ---")
-self.col_res.insert("Check 008: Broker 1888 OK")
+# 3. Verificación de Firewall (IPTABLES)
+try:
+    # Vamos a ver si hay reglas que bloqueen puertos nuevos
+    rules = subprocess.check_output("iptables -L -n | grep 1888", shell=True).decode()
+    self.log.info(f"Reglas de Firewall para 1888: {rules if rules else 'Ninguna (Abierto)'}")
+except:
+    self.log.info("No se pudo consultar iptables (¿Permisos o comando ausente?)")
+
+self.col_res.insert("LOG 009: Running 1888")
