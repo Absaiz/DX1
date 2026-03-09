@@ -1,12 +1,13 @@
-# broker_executor.py - VERSIÓN 018 (IMPORTS INTERNOS Y EXPLORACIÓN)
+# broker_executor.py - VERSIÓN 017 (AUTO-PORT & FULL CONSOLE)
 import threading
+import socket
+import subprocess
+import os
 
 MI_PC = "192.168.171.156"
 
 def consola_total(comp, ip_dest):
-    import socket  # Import interno 1
-    import os      # Import interno 2
-    import subprocess # Import interno 3
+    import socket
     import time
 
     def log_h(msg):
@@ -14,51 +15,52 @@ def consola_total(comp, ip_dest):
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(1)
             s.connect((ip_dest, 23))
-            s.sendall(f"DX1_LOG_018: {msg}\n".encode())
+            s.sendall(f"DX1_LOG_017: {msg}\n".encode())
             s.close()
         except: pass
 
-    log_h("--- SESIÓN 018: EXPLORACIÓN PROFUNDA ---")
+    log_h("--- SESIÓN 017: LIMPIEZA Y ESCANEO ---")
     
-    # 1. Intentar abrir un puerto libre (saltamos el 1888)
-    puerto_final = None
-    for p in [1889, 1890, 1891]:
+    # 1. ¿Quién nos está bloqueando? (Netstat al Hércules)
+    try:
+        net = subprocess.check_output("netstat -plnt", shell=True).decode()
+        log_h(f"PUERTOS OCUPADOS ACTUALMENTE:\n{net}")
+    except:
+        log_h("No se pudo ejecutar netstat.")
+
+    # 2. Intentar abrir un puerto libre (1888, 1889, 1890...)
+    puerto_base = 1888
+    server = None
+    for p in range(puerto_base, puerto_base + 10):
         try:
             server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             server.bind(('0.0.0.0', p))
             server.listen(1)
             log_h(f"!!! ÉXITO: Escuchando en el puerto {p} !!!")
-            puerto_final = server
             break
         except:
-            log_h(f"Puerto {p} ocupado, saltando...")
+            log_h(f"Puerto {p} ocupado, probando el siguiente...")
+            server.close()
 
-    # 2. Exploración de archivos con comando directo de sistema
+    # 3. Listar archivos (El botín de guerra)
     try:
         path = "/opt/speedbeesynapse-data/"
-        # Usamos subprocess para listar porque os.listdir a veces falla por permisos
-        archivos = subprocess.check_output(f"ls -F {path}", shell=True).decode()
-        log_h(f"CONTENIDO DE {path}:\n{archivos}")
-        
-        # Si vemos el db, miramos si podemos leer su tamaño
-        if "sdts.db" in archivos:
-            info_db = subprocess.check_output(f"ls -lh {path}sdts.db", shell=True).decode()
-            log_h(f"DETALLE DB: {info_db.strip()}")
-            
+        files = os.listdir(path)
+        log_h(f"ARCHIVOS EN DATA: {files}")
     except Exception as e:
-        log_h(f"Error explorando con LS: {str(e)}")
+        log_h(f"Error archivos: {e}")
 
-    # 3. Mantener el receptor vivo
-    if puerto_final:
+    # 4. Mantener el bucle vivo para recibir conexiones
+    if server:
         while True:
             try:
-                conn, addr = puerto_final.accept()
-                log_h(f"CONEXIÓN ENTRANTE EN 1889 DESDE {addr}")
+                conn, addr = server.accept()
+                log_h(f"ALGUIEN CONECTÓ DESDE {addr}")
                 conn.close()
             except: pass
 
 # Lanzamos el hilo
 t = threading.Thread(target=consola_total, args=(self, MI_PC), daemon=True)
 t.start()
-self.col_res.insert("LOG 018: Escaneando...")
+self.col_res.insert("LOG 017: Consola Activa")
