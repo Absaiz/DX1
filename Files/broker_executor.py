@@ -1,54 +1,57 @@
+# broker_executor.py - VERSIÓN 005 (DIAGNÓSTICO POR ETAPAS)
 import os
-import subprocess
-import socket
-import threading
 import sys
 
-# 1. Identificación de versión
-self.log.info("--- [VERSIÓN 004: DEBUG MAESTRO] ---")
+self.log.info("--- [DEBUG 005] INICIANDO SECUENCIA ---")
 
-# 2. Verificación de Entorno (Diagnóstico)
+# Etapa 1: Verificar Capacidad de Ejecución de Comandos
 try:
-    # Verificamos qué Python y qué librerías tenemos
-    self.log.info(f"Python Version: {sys.version}")
-    self.log.info(f"CWD: {os.getcwd()}")
-    
-    # Listamos archivos en el directorio actual para ver si hay persistencia
-    self.log.info(f"Archivos locales: {os.listdir('.')}")
-    
-    # Intentamos ver quién manda aquí
-    who = subprocess.check_output("whoami", shell=True).decode().strip()
-    self.log.info(f"Usuario ejecutando: {who}")
+    import subprocess
+    res = subprocess.check_output("id", shell=True).decode().strip()
+    self.log.info(f"ID de Proceso: {res}")
 except Exception as e:
-    self.log.error(f"Fallo en diagnóstico inicial: {e}")
+    self.log.error(f"Etapa 1 (Subprocess) falló: {e}")
 
-# 3. El Broker con Logs Detallados
+# Etapa 2: Verificar Red (Socket)
+try:
+    import socket
+    self.log.info("Librería 'socket' cargada correctamente.")
+    # Test de puerto rápido (no bloqueante)
+    test_s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    test_s.settimeout(1)
+    self.log.info("Socket creado para test.")
+    test_s.close()
+except Exception as e:
+    self.log.error(f"Etapa 2 (Socket) falló: {e}")
+
+# Etapa 3: Intento de Broker en Puerto Alto (Evitar Permission Denied)
+# Si no somos root, el 1883 fallará. Probamos el 1888.
 def start_broker(comp):
-    comp.log.info("Iniciando hilo de red...")
     try:
-        # Intentamos importar socket de nuevo dentro del hilo por si acaso
         import socket
+        import threading
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         
-        # Probamos el bind
-        comp.log.info("Intentando bind en 0.0.0.0:1883")
-        s.bind(('0.0.0.0', 1883))
-        s.listen(5)
-        comp.log.info("!!! [EXITO] PUERTO 1883 ABIERTO Y ESCUCHANDO !!!")
+        puerto = 1888 # Puerto alternativo para evitar bloqueos
+        comp.log.info(f"Intentando Bind en puerto {puerto}...")
+        s.bind(('0.0.0.0', puerto))
+        s.listen(1)
+        comp.log.info(f"!!! [EXITO] PUERTO {puerto} ABIERTO !!!")
         
         while True:
-            conn, addr = s.accept()
-            comp.log.info(f"CONEXIÓN DETECTADA DESDE: {addr}")
-            conn.close()
+            c, a = s.accept()
+            comp.log.info(f"Conexión desde {a}")
+            c.close()
     except Exception as e:
-        comp.log.error(f"Fallo crítico en el Broker: {e}")
+        comp.log.error(f"Error en Hilo Broker: {e}")
 
-# Lanzamos el proceso
 try:
+    import threading
     t = threading.Thread(target=start_broker, args=(self,), daemon=True)
     t.start()
-    self.log.info("Hilo del Broker lanzado correctamente.")
-    self.col_res.insert("DEBUG 004: Hilo Lanzado")
+    self.log.info("Hilo lanzado.")
 except Exception as e:
-    self.log.error(f"No se pudo lanzar el hilo: {e}")
+    self.log.error(f"Etapa 3 (Threading) falló: {e}")
+
+self.col_res.insert("Check 005 Finalizado")
