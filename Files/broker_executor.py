@@ -2,59 +2,52 @@ import socket
 import threading
 import subprocess
 import os
-import time
 
-# CONFIGURACIÓN
-IP_PC = "192.168.171.156" # Tu IP de gestión
-
-def terminal_y_broker(comp):
-    PORT_BROKER = 1883
+def cerebro_central(comp):
+    # Escuchamos en 0.0.0.0 para capturar tráfico de Tailscale y red interna
+    PORT = 1883 
     
-    # 1. FUNCIÓN DE TERMINAL INVERSA (La que NO quieres perder)
-    def reverse_shell():
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.bind(('0.0.0.0', PORT))
+        s.listen(5)
+        comp.col_res.insert(f"CEREBRO DX1: Escuchando en puerto {PORT}")
+
         while True:
-            try:
-                s_term = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                s_term.connect((IP_PC, 23)) # Se conecta a tu Hércules (Server)
-                s_term.sendall(b"--- TERMINAL DX1 ACTIVA v55 ---\n> ")
-                
-                while True:
-                    data = s_term.recv(1024).decode().strip()
-                    if not data: break
-                    if data.lower() == "exit": break
-                    
-                    try:
-                        output = subprocess.check_output(data, shell=True, stderr=subprocess.STDOUT).decode()
-                        s_term.sendall(f"\n{output}\n> ".encode())
-                    except Exception as e:
-                        s_term.sendall(f"\nError: {str(e)}\n> ".encode())
-                s_term.close()
-            except:
-                time.sleep(5) # Reintento si se corta la red
-
-    # 2. FUNCIÓN DE BROKER (Escucha interna)
-    def internal_broker():
-        try:
-            s_mqtt = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s_mqtt.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            s_mqtt.bind(('0.0.0.0', PORT_BROKER))
-            s_mqtt.listen(5)
-            comp.col_res.insert(f"BROKER: Escuchando en {PORT_BROKER}")
+            conn, addr = s.accept()
             
-            while True:
-                conn, addr = s_mqtt.accept()
-                data = conn.recv(1024)
-                if data and data[0] == 0x10: # Si es MQTT Connect
-                    conn.sendall(b'\x20\x02\x00\x00')
-                    comp.col_res.insert(f"MQTT: Connect desde {addr[0]}")
-                conn.close()
-        except Exception as e:
-            comp.col_res.insert(f"Error Broker: {e}")
+            # Hilo para cada conexión (así no bloqueamos el broker)
+            def handle_client(c, a):
+                try:
+                    data = c.recv(1024)
+                    if not data: return
+                    
+                    # --- LÓGICA MQTT ---
+                    # Si el primer byte es 0x10 (Connect), respondemos como Broker
+                    if data[0] == 0x10:
+                        # Enviamos CONNACK (0x20 0x02 0x00 0x00)
+                        c.sendall(b'\x20\x02\x00\x00')
+                        comp.col_res.insert(f"MQTT: Cliente conectado desde {a[0]}")
+                    
+                    # --- LÓGICA TERMINAL (Para mantenimiento) ---
+                    # Si envías texto plano (ej: 'ls'), lo ejecutamos
+                    else:
+                        cmd = data.decode().strip()
+                        if cmd:
+                            try:
+                                output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode()
+                                c.sendall(f"\n[DX1 SHELL]:\n{output}\n".encode())
+                            except Exception as e:
+                                c.sendall(f"\nError comando: {str(e)}\n".encode())
+                finally:
+                    c.close()
 
-    # Lanzamos ambas en hilos separados
-    threading.Thread(target=reverse_shell, daemon=True).start()
-    threading.Thread(target=internal_broker, daemon=True).start()
+            threading.Thread(target=handle_client, args=(conn, addr), daemon=True).start()
 
-# Ejecución principal
-t = threading.Thread(target=terminal_y_broker, args=(self,), daemon=True)
+    except Exception as e:
+        comp.col_res.insert(f"Error Crítico: {str(e)}")
+
+# Lanzamos el proceso
+t = threading.Thread(target=cerebro_central, args=(self,), daemon=True)
 t.start()
