@@ -1,63 +1,51 @@
 import socket
 import threading
 import time
+import json
+import urllib.request
 
-def puente_con_logs_a_terminal(comp):
-    WEB_PORT = 9000
-    INTERNAL_PORT = 8080
-    MI_PC_IP = "192.168.171.156" # La IP donde tienes el Hércules/Terminal
+def orquestador_cj_api(comp):
+    # --- CONFIGURACIÓN ---
+    TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJBY2Nlc3NUb2tlbiIsImV4cCI6MTgwNDYyMjc4NywidG9rZW5fbmFtZSI6Ijk3ZWE1ZjRlLWJiMjAtNDAxMS1iNjQ5LWI1YWZmMTRlZWZhMiJ9.0ClFN7s-kMjLIiH7vNdlzbg9_JuJ-4ZDWSTBnRiroC4"
+    API_BASE = "http://127.0.0.1:8120/ext_api/v1/components"
+    CJ_ID = "g6MQvWWHTM-lCAjG0WS77Q" # El ID del componente 'cj'
+    
+    T_ON = 10
+    T_OFF = 20
 
-    def log_remoto(mensaje):
+    def call_api(action):
+        """ Envía PUT /start o /stop al componente 'cj' """
+        url = f"{API_BASE}/{action}"
+        payload = json.dumps({"component_ids": [CJ_ID]}).encode('utf-8')
+        
+        req = urllib.request.Request(url, data=payload, method='PUT')
+        req.add_header('X-hive-api-key', TOKEN)
+        req.add_header('Content-Type', 'application/json')
+        
         try:
-            # Enviamos el log a tu terminal abierta
-            s_log = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s_log.connect((MI_PC_IP, 23)) 
-            s_log.sendall(f"[LOG DX1]: {mensaje}\n".encode())
-            s_log.close()
-        except: pass
-
-    def start_bridge():
-        try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            
-            try:
-                s.bind(('0.0.0.0', WEB_PORT))
-                log_remoto(f"🚀 PUENTE EN MARCHA: http://100.117.214.15:{WEB_PORT}")
-            except Exception as e:
-                log_remoto(f"❌ ERROR BIND: {e}")
-                return
-
-            s.listen(10)
-            while True:
-                conn, addr = s.accept()
-                log_remoto(f"🔗 Conexión desde Ryzen: {addr[0]}")
-                
-                def tunnel(c):
-                    try:
-                        remote = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                        remote.settimeout(5)
-                        remote.connect(('127.0.0.1', INTERNAL_PORT))
-                        
-                        def pipe(src, dst):
-                            try:
-                                while True:
-                                    d = src.recv(8192)
-                                    if not d: break
-                                    dst.sendall(d)
-                            except: pass
-                        
-                        threading.Thread(target=pipe, args=(c, remote), daemon=True).start()
-                        pipe(remote, c)
-                    except Exception as e:
-                        log_remoto(f"⚠️ Fallo interno al 8080: {e}")
-                        c.close()
-
-                threading.Thread(target=tunnel, args=(conn,), daemon=True).start()
+            with urllib.request.urlopen(req, timeout=5) as r:
+                if r.status == 200:
+                    status_icon = "🟢 RUN" if action == "start" else "🔴 STOP"
+                    comp.col_res.insert(f"[{time.strftime('%H:%M:%S')}] CJ -> {status_icon}")
+                else:
+                    comp.col_res.insert(f"❌ Error API {action}: {r.status}")
         except Exception as e:
-            log_remoto(f"❌ Error Crítico: {e}")
+            comp.col_res.insert(f"⚠️ Fallo conexión API: {e}")
 
-    threading.Thread(target=start_bridge, daemon=True).start()
+    def loop_secuencial():
+        comp.col_res.insert("🎮 SECUENCIADOR ACTIVO: 10s ON / 20s OFF")
+        while True:
+            # ENCENDER
+            call_api("start")
+            time.sleep(T_ON)
+            
+            # APAGAR
+            call_api("stop")
+            time.sleep(T_OFF)
+
+    # Lanzamos en un hilo para que el broker_executor no se quede bloqueado
+    t = threading.Thread(target=loop_secuencial, daemon=True)
+    t.start()
 
 # Ejecución
-puente_con_logs_a_terminal(self)
+orquestador_cj_api(self)
