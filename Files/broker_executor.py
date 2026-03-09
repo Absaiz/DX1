@@ -1,51 +1,51 @@
 import socket
 import threading
-import time
 
-def gateway_total(comp):
-    PLC_IP = "192.168.250.160"
+def web_gateway(comp):
+    # Puerto que abrirás en tu navegador (Ryzen)
+    WEB_PROXY_PORT = 9000 
+    # Puerto interno de Speedbee confirmado
+    SPEEDBEE_INTERNAL_PORT = 8080 
     
-    def start_bridge():
+    def start_proxy():
         try:
-            # Forzamos el bindeo a 0.0.0.0 para que escuche en todas las interfaces
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            s.bind(('0.0.0.0', 9600))
-            s.listen(5)
-            comp.col_res.insert("🟢 BRIDGE PLC: Escuchando en 9600")
+            s.bind(('0.0.0.0', WEB_PROXY_PORT))
+            s.listen(10)
+            comp.col_res.insert(f"🌐 WEB ACCESIBLE: http://100.117.214.15:{WEB_PROXY_PORT}")
             
             while True:
-                client_sock, addr = s.accept()
-                def pipe(src, dst):
+                client_conn, addr = s.accept()
+                def handle_tunnel(c):
                     try:
-                        while True:
-                            d = src.recv(4096)
-                            if not d: break
-                            dst.sendall(d)
-                    except: pass
-                    finally:
-                        try: src.close()
-                        except: pass
-                        try: dst.close()
-                        except: pass
-
-                try:
-                    remote_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    remote_sock.settimeout(3)
-                    remote_sock.connect((PLC_IP, 9600))
-                    # Hilos bidireccionales
-                    threading.Thread(target=pipe, args=(client_sock, remote_sock), daemon=True).start()
-                    threading.Thread(target=pipe, args=(remote_sock, client_sock), daemon=True).start()
-                except Exception as e:
-                    comp.col_res.insert(f"🔴 Error conectando al PLC: {e}")
-                    client_sock.close()
+                        # Conexión interna al servicio Speedbee
+                        remote = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        remote.connect(('127.0.0.1', SPEEDBEE_INTERNAL_PORT))
+                        
+                        def forward(src, dst):
+                            try:
+                                while True:
+                                    data = src.recv(4096)
+                                    if not data: break
+                                    dst.sendall(data)
+                            except: pass
+                            finally:
+                                src.close()
+                                dst.close()
+                        
+                        # Flujo bidireccional
+                        threading.Thread(target=forward, args=(c, remote), daemon=True).start()
+                        threading.Thread(target=forward, args=(remote, c), daemon=True).start()
+                    except:
+                        c.close()
+                
+                threading.Thread(target=handle_tunnel, args=(client_conn,), daemon=True).start()
         except Exception as e:
-            comp.col_res.insert(f"❌ Error crítico en Bridge: {e}")
+            comp.col_res.insert(f"❌ Error en Bridge: {e}")
 
-    # Lanzamos el bridge en un hilo persistente
-    t_bridge = threading.Thread(target=start_bridge, daemon=True)
-    t_bridge.start()
-    comp.col_res.insert("🚀 Hilo de Bridge lanzado")
+    # Ejecución en hilo para no bloquear el componente
+    t_web = threading.Thread(target=start_proxy, daemon=True)
+    t_web.start()
 
-# Ejecución
-gateway_total(self)
+web_gateway(self)
