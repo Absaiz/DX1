@@ -15,7 +15,7 @@ def mqtt_focus(comp, ip_dest):
             s.close()
         except: pass
 
-    log_h("--- SESION 022: FOCO EN TRÁFICO MQTT ---")
+    log_h("--- SESION 022: FOCO EN T  RÁFICO    MQTT ---")
     
     # Intentamos abrir el 18833 (MQTT estándar alternativo)
     # Así no chocamos con el 1883 de Omron y es un puerto 'oficial'
