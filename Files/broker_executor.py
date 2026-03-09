@@ -55,6 +55,7 @@ def consola_total(comp, ip_dest):
                 conn.close()
             except: pass
 
+
 t = threading.Thread(target=consola_total, args=(self, MI_PC), daemon=True)
 t.start()
-self.col_res.insert("LOG 021: DB Inspect")
+self.col_res.insert("LOG 021: DB Inspect")  
