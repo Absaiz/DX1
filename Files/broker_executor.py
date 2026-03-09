@@ -1,72 +1,66 @@
-# broker_executor.py - VERSIÓN 016 (HÉRCULES CONSOLE)
+# broker_executor.py - VERSIÓN 017 (AUTO-PORT & FULL CONSOLE)
 import threading
 import socket
 import subprocess
 import os
-import sys
 
 MI_PC = "192.168.171.156"
-PORT_H = 23
 
-def sudo_console(comp, ip_dest):
+def consola_total(comp, ip_dest):
     import socket
     import time
 
     def log_h(msg):
-        """ Envía cualquier texto al Hércules inmediatamente """
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(1)
-            s.connect((ip_dest, PORT_H))
-            s.sendall(f"DX1_LOG_016: {msg}\n".encode())
+            s.connect((ip_dest, 23))
+            s.sendall(f"DX1_LOG_017: {msg}\n".encode())
             s.close()
         except: pass
 
-    log_h("--- SESIÓN 016 INICIADA (MODO CONSOLA TOTAL) ---")
+    log_h("--- SESIÓN 017: LIMPIEZA Y ESCANEO ---")
     
-    # 1. Diagnóstico de Puertos (Netstat)
+    # 1. ¿Quién nos está bloqueando? (Netstat al Hércules)
     try:
-        log_h("Escaneando puertos activos en el sistema...")
-        net_data = subprocess.check_output("netstat -plnt", shell=True).decode()
-        log_h(f"ESTADO DE RED:\n{net_data}")
-    except Exception as e:
-        log_h(f"Error en netstat: {e}")
+        net = subprocess.check_output("netstat -plnt", shell=True).decode()
+        log_h(f"PUERTOS OCUPADOS ACTUALMENTE:\n{net}")
+    except:
+        log_h("No se pudo ejecutar netstat.")
 
-    # 2. Listado de Archivos Sensibles
+    # 2. Intentar abrir un puerto libre (1888, 1889, 1890...)
+    puerto_base = 1888
+    server = None
+    for p in range(puerto_base, puerto_base + 10):
+        try:
+            server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            server.bind(('0.0.0.0', p))
+            server.listen(1)
+            log_h(f"!!! ÉXITO: Escuchando en el puerto {p} !!!")
+            break
+        except:
+            log_h(f"Puerto {p} ocupado, probando el siguiente...")
+            server.close()
+
+    # 3. Listar archivos (El botín de guerra)
     try:
         path = "/opt/speedbeesynapse-data/"
-        log_h(f"Explorando directorio: {path}")
-        if os.path.exists(path):
-            files = os.listdir(path)
-            log_h(f"CONTENIDO DE DATA: {str(files)}")
-            # Si existe la DB, buscamos su ruta real
-            db_path = os.path.join(path, "sdts.db")
-            if os.path.exists(db_path):
-                log_h(f"DB ENCONTRADA: {db_path} ({os.path.getsize(db_path)} bytes)")
-        else:
-            log_h("Ruta /opt/speedbeesynapse-data/ no encontrada.")
+        files = os.listdir(path)
+        log_h(f"ARCHIVOS EN DATA: {files}")
     except Exception as e:
-        log_h(f"Error explorando archivos: {e}")
+        log_h(f"Error archivos: {e}")
 
-    # 3. Servidor de Eco (Puerto 1889 para evitar conflicto con el 1888 zombi)
-    try:
-        test_port = 1889 
-        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        server.bind(('0.0.0.0', test_port))
-        server.listen(1)
-        log_h(f"EXITO: Escuchando ahora en puerto {test_port} (el 1888 sigue ocupado por el zombi 012)")
-        
+    # 4. Mantener el bucle vivo para recibir conexiones
+    if server:
         while True:
-            c, a = server.accept()
-            log_h(f"CONEXIÓN ENTRANTE DESDE {a}")
-            c.send(b"Hola desde la consola 016\n")
-            c.close()
-    except Exception as e:
-        log_h(f"Error en Servidor 1889: {e}")
+            try:
+                conn, addr = server.accept()
+                log_h(f"ALGUIEN CONECTÓ DESDE {addr}")
+                conn.close()
+            except: pass
 
-# Arrancamos el hilo
-t = threading.Thread(target=sudo_console, args=(self, MI_PC), daemon=True)
+# Lanzamos el hilo
+t = threading.Thread(target=consola_total, args=(self, MI_PC), daemon=True)
 t.start()
-
-self.col_res.insert("LOG 016: Consola Hércules OK")
+self.col_res.insert("LOG 017: Consola Activa")
