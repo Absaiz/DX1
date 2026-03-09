@@ -1,7 +1,7 @@
 from speedbeesynapse.component.base import HiveComponentBase, HiveComponentInfo, DataType
 import requests
 
-@HiveComponentInfo(uuid='00000000-aaaa-aaaa-aaaa-000000044888', name='System_execceute', inports=0, outports=1)
+@HiveComponentInfo(uuid='00000000-aaaa-aaaa-aaaa-000000044888', name='System_execute', inports=0, outports=1)
 class HiveComponent(HiveComponentBase):
     def main(self, param):
         self.col_res = self.out_port1.Column('status', DataType.STRING)
