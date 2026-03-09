@@ -1,0 +1,8 @@
+﻿"components": {
+    "00000000-aaaa-aaaa-aaaa-123533334611": {
+        "name": "Orquestador_Cj_Pro",
+        "description": "Bucle 10s ON / 20s OFF via WebAPI",
+        "component-type": "python",
+        "module-name": "orquestador_main"
+    }
+}

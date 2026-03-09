@@ -1,0 +1,19 @@
+{
+    "package-name": "Cj_Orquestador_Pro",
+    "package-version": "1.0.0",
+    "package-uuid": "00000000-aaaa-aaaa-aaaa-333367654611",
+    "package-description": "Control Secuencial 10s/20s para Colector CJ",
+    "author": "Aylal",
+    "license": "UNLICENSED",
+    "python-components-source": "source/python",
+    "components": {
+        "00000000-aaaa-aaaa-aaaa-123567654611": {
+            "name": "Orquestador_Cj_Pro",
+            "description": "Bucle 10s ON / 20s OFF via WebAPI",
+            "component-type": "python",
+            "module-name": "orquestador_main",
+            "parameter-ui-type": "json",
+            "parameter-ui": "parameter_ui/orquestador_ui.json"
+        }
+    }
+}
