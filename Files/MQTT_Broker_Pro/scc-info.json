@@ -1,0 +1,18 @@
+{
+    "package-name": "MQTT_Broker_Native",
+    "package-version": "1.0.0",
+    "package-uuid": "00000000-bbbb-cccc-dddd-1234567890ab",
+    "author": "Bravo",
+    "license": "ABS",
+    "python-components-source": "source/python",
+    "components": {
+        "00000000-bbbb-cccc-dddd-1234567890ab": {
+            "name": "MQTT_Broker_Internal",
+            "description": "Broker MQTT Nativo en puerto 1883",
+            "component-type": "python",
+            "module-name": "mqtt_broker_main",
+            "parameter-ui-type": "json",
+            "parameter-ui": "parameter_ui/broker_ui.json"
+        }
+    }
+}
