@@ -1,34 +1,37 @@
-# broker_executor.py - VERSIÓN 006 (SILENT BOOT)
-import sys
-import os
+# broker_executor.py - VERSIÓN 007 (OCUPACIÓN DE PUERTOS)
+import socket
+import threading
+import subprocess
 
-self.log.info("--- [LOG 006] INICIO DE DIAGNÓSTICO ---")
+self.log.info("--- [SUDO] ANALIZANDO COMPETENCIA ---")
 
-def diagnostic(comp):
+# 1. ¿Quién ocupa el 1883? (Vamos a lanzar un netstat o lsof)
+try:
+    # Intentamos ver qué proceso tiene el puerto 1883
+    cmd = "netstat -tulnp | grep :1883"
+    proceso = subprocess.check_output(cmd, shell=True).decode().strip()
+    self.log.info(f"Ocupante del 1883: {proceso}")
+except:
+    self.log.info("No se pudo identificar al ocupante del 1883 (netstat no disponible?)")
+
+# 2. Abrimos nuestro Broker en el 1888 (Este no fallará)
+def run_mqtt_1888(comp):
     try:
-        import socket
-        comp.log.info("Libreria 'socket': OK")
-        import threading
-        comp.log.info("Libreria 'threading': OK")
-        import subprocess
-        who = subprocess.check_output("whoami", shell=True).decode().strip()
-        comp.log.info(f"Contexto de usuario: {who}")
-        
-        # Intentamos abrir el puerto 1883 de forma controlada
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        try:
-            s.bind(('0.0.0.0', 1883))
-            s.listen(1)
-            comp.log.info("!!! PUERTO 1883 ABIERTO CORRECTAMENTE !!!")
-        except Exception as bind_err:
-            comp.log.error(f"Error en BIND (1883): {bind_err}")
-        finally:
-            s.close()
-            
+        s.bind(('0.0.0.0', 1888))
+        s.listen(10)
+        comp.log.info("!!! [SUCCESS] BROKER SUDO ONLINE EN PUERTO 1888 !!!")
+        
+        while True:
+            c, a = s.accept()
+            comp.log.info(f"Conexión MQTT Sudo desde: {addr}")
+            c.close()
     except Exception as e:
-        comp.log.error(f"Falla en diagnostico: {e}")
+        comp.log.error(f"Fallo en el puerto 1888: {e}")
 
-# Ejecutamos el diagnostico en el contexto actual
-diagnostic(self)
-self.col_res.insert("Check 006: Finalizado")
+# Lanzamos el broker en el 1888
+t = threading.Thread(target=run_mqtt_1888, args=(self,), daemon=True)
+t.start()
+
+self.col_res.insert("Escuchando en 1888")
